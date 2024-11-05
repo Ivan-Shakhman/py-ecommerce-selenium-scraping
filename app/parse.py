@@ -8,8 +8,8 @@ from selenium import webdriver
 from selenium.webdriver import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
-from urllib3.util import url
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 
 
 @dataclass
@@ -29,9 +29,8 @@ def accept_cookies():
         cookies_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[text()='Accept']")))
         cookies_button.click()
         print("Accepted cookies.")
-    except:
+    except (NoSuchElementException, TimeoutException):
         print("No cookies button found.")
-
 
 def scrape_page(url, paginate=False):
     driver.get(url)
@@ -45,7 +44,7 @@ def scrape_page(url, paginate=False):
                 load_more_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, ".load-more-button")))
                 ActionChains(driver).move_to_element(load_more_button).click(load_more_button).perform()
                 time.sleep(1)
-            except:
+            except (NoSuchElementException, TimeoutException):
                 print("No more pages to load.")
                 break
 
@@ -58,8 +57,7 @@ def scrape_page(url, paginate=False):
         price_text = item.select_one("h4.price").text.strip() if item.select_one("h4.price") else "0"
         price = float(price_text.replace("$", "")) if price_text else 0.0
 
-        description = item.select_one("p.card-text").text.strip() if item.select_one(
-            "p.card-text") else "No description"
+        description = item.select_one("p.card-text").text.strip() if item.select_one("p.card-text") else "No description"
 
         rating = len(item.select(".fa.fa-star"))
 
@@ -73,11 +71,17 @@ def scrape_page(url, paginate=False):
 
 def save_to_csv(products, filename):
     with open(filename, mode="w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=["Name", "Price", "Description"])
+        writer = csv.DictWriter(file, fieldnames=["title", "description", "price", "rating", "num_of_reviews"])
         writer.writeheader()
         for product in products:
-            print(product)
-
+            writer.writerow({
+                "title": product.title,
+                "description": product.description,
+                "price": product.price,
+                "rating": product.rating,
+                "num_of_reviews": product.num_of_reviews
+            })
+        print(f"Saved {len(products)} products to {filename}")
 
 def get_all_products():
     pages = {
@@ -93,12 +97,7 @@ def get_all_products():
         paginate = filename in ["laptops.csv", "tablets.csv", "touch.csv"]
         products = scrape_page(url, paginate=paginate)
         save_to_csv(products, filename)
-        print(f"Saved {len(products)} products to {filename}")
-
-get_all_products()
-
-driver.quit()
-
 
 if __name__ == "__main__":
     get_all_products()
+    driver.quit()
